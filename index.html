@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Playlist da lista</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231a1a1a'/%3E%3Ccircle cx='90' cy='90' r='52' fill='none' stroke='%231ed760' stroke-width='10'/%3E%3Ccircle cx='90' cy='90' r='12' fill='%231ed760'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e3e1dc;
+  --accent:#128a3e; --accent-ink:#ffffff; --ok:#128a3e; --warn:#b26b00; --bad:#b3261e;
+  --chip-ok:#e3f4e8; --chip-warn:#fbefd9; --chip-bad:#f9e1df;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121212; --card:#1c1c1c; --ink:#f1f1f1; --muted:#9a9a9a; --line:#2c2c2c;
+    --accent:#1ed760; --accent-ink:#0b0b0b; --ok:#1ed760; --warn:#f2b13c; --bad:#ff7a70;
+    --chip-ok:#16331f; --chip-warn:#3a2c12; --chip-bad:#3d1b18;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121212; --card:#1c1c1c; --ink:#f1f1f1; --muted:#9a9a9a; --line:#2c2c2c;
+  --accent:#1ed760; --accent-ink:#0b0b0b; --ok:#1ed760; --warn:#f2b13c; --bad:#ff7a70;
+  --chip-ok:#16331f; --chip-warn:#3a2c12; --chip-bad:#3d1b18;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+  padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px)}
+main{max-width:640px;margin:0 auto}
+h1{font-size:26px;letter-spacing:-.02em;margin:20px 0 2px}
+.sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600}
+label{display:block;font-size:14px;color:var(--muted);margin:10px 0 4px}
+input[type=text],textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:180px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;font-weight:600;border:0;border-radius:999px;padding:11px 18px;
+  background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.45}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all;
+  background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
+.status{font-size:14px;color:var(--muted);margin-top:10px;min-height:1.4em}
+.err{color:var(--bad)}
+.toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:15px;color:var(--ink)}
+.summary{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 9px}
+.c-ok{background:var(--chip-ok);color:var(--ok)}
+.c-warn{background:var(--chip-warn);color:var(--warn)}
+.c-bad{background:var(--chip-bad);color:var(--bad)}
+ul.tracks{list-style:none;margin:0;padding:0}
+ul.tracks li{display:grid;grid-template-columns:24px 44px 1fr;gap:10px;align-items:start;
+  padding:10px 0;border-top:1px solid var(--line)}
+ul.tracks li:first-child{border-top:0}
+.cover{width:44px;height:44px;border-radius:6px;background:var(--line);object-fit:cover}
+.req{font-size:12px;color:var(--muted)}
+.got{font-weight:600;font-size:15px}
+.alb{font-size:13px;color:var(--muted)}
+select{width:100%;margin-top:6px;font:inherit;font-size:13px;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:6px}
+.link{background:none;border:0;padding:0;color:var(--accent);font-weight:600;font-size:13px;margin-top:4px}
+.progress{height:4px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:10px}
+.progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
+details summary{cursor:pointer;font-weight:600}
+a{color:var(--accent)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>Playlist da lista</h1>
+  <p class="sub">Incolla un elenco di brani, controlla gli abbinamenti, crea la playlist su Spotify.</p>
+
+  <section id="setup">
+    <h2>Account</h2>
+    <div id="authState" class="status"></div>
+    <details id="cfg">
+      <summary>Impostazioni app Spotify</summary>
+      <label for="clientId">Client ID (dalla Spotify Developer Dashboard)</label>
+      <input id="clientId" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <label>Redirect URI da registrare nella Dashboard</label>
+      <div id="redirect" class="mono"></div>
+    </details>
+    <div class="row" style="margin-top:12px">
+      <button id="loginBtn">Accedi a Spotify</button>
+      <button id="logoutBtn" class="ghost hidden">Esci</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Brani</h2>
+    <label for="plName">Nome della playlist</label>
+    <input id="plName" type="text" value="Musica leggerissima (ma non troppo)">
+    <label for="list">Elenco (una riga per brano)</label>
+    <textarea id="list" placeholder="Verdena – Valvonauta&#10;Afterhours - Male di miele&#10;&#10;oppure:&#10;**Baustelle**&#10;1. **Charlie fa surf** – *Amen* (2008)"></textarea>
+    <div class="row" style="margin-top:12px">
+      <button id="parseBtn">Cerca i brani</button>
+      <span id="parsedCount" class="req"></span>
+    </div>
+    <div class="progress hidden" id="prog"><div></div></div>
+    <div id="searchStatus" class="status"></div>
+  </section>
+
+  <section id="results" class="hidden">
+    <h2>Risultati</h2>
+    <div class="summary" id="summary"></div>
+    <ul class="tracks" id="tracks"></ul>
+    <label class="toggle"><input type="checkbox" id="publicChk"> Playlist pubblica</label>
+    <div class="row" style="margin-top:12px">
+      <button id="createBtn">Crea playlist</button>
+      <button id="csvBtn" class="ghost">Esporta report</button>
+    </div>
+    <div id="createStatus" class="status"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const SCOPES = "playlist-modify-private playlist-modify-public";
+const API = "https://api.spotify.com/v1";
+const REDIRECT = location.origin + location.pathname;
+const AVOID = ["live","remix","acoustic","acustica","demo","karaoke","instrumental","strumentale","version","versione","edit"];
+const $ = id => document.getElementById(id);
+
+/* ---------- storage (try/catch: Safari privato può bloccarlo) ---------- */
+const store = {
+  get(k, d=null){ try{ const v = localStorage.getItem(k); return v===null ? d : JSON.parse(v);}catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} },
+  del(k){ try{ localStorage.removeItem(k); }catch{} }
+};
+
+/* ---------- OAuth PKCE ---------- */
+function b64url(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function randomString(n=64){
+  const a = new Uint8Array(n); crypto.getRandomValues(a);
+  return b64url(a).slice(0, n);
+}
+async function login(){
+  const clientId = $("clientId").value.trim();
+  if(!clientId){ $("cfg").open = true; $("clientId").focus(); setAuth("Inserisci prima il Client ID.", true); return; }
+  store.set("clientId", clientId);
+  const verifier = randomString(64);
+  const state = randomString(16);
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  sessionStorage.setItem("pkce_verifier", verifier);
+  sessionStorage.setItem("pkce_state", state);
+  const p = new URLSearchParams({
+    response_type:"code", client_id:clientId, scope:SCOPES, redirect_uri:REDIRECT,
+    code_challenge_method:"S256", code_challenge:challenge, state
+  });
+  location.href = "https://accounts.spotify.com/authorize?" + p;
+}
+async function tokenRequest(params){
+  const r = await fetch("https://accounts.spotify.com/api/token", {
+    method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams(params)
+  });
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error_description || j.error || "Errore token");
+  const old = store.get("tok", {});
+  const tok = { access:j.access_token, refresh:j.refresh_token || old.refresh, exp:Date.now() + (j.expires_in - 60) * 1000 };
+  store.set("tok", tok);
+  return tok;
+}
+async function handleCallback(){
+  const q = new URLSearchParams(location.search);
+  if(!q.has("code") && !q.has("error")) return;
+  history.replaceState(null, "", REDIRECT);
+  if(q.has("error")){ setAuth("Accesso annullato: " + q.get("error"), true); return; }
+  const verifier = sessionStorage.getItem("pkce_verifier");
+  const state = sessionStorage.getItem("pkce_state");
+  sessionStorage.removeItem("pkce_verifier"); sessionStorage.removeItem("pkce_state");
+  if(!verifier || q.get("state") !== state){ setAuth("Callback non valida (state diverso). Riprova l'accesso.", true); return; }
+  try{
+    await tokenRequest({ grant_type:"authorization_code", code:q.get("code"), redirect_uri:REDIRECT,
+                         client_id:store.get("clientId"), code_verifier:verifier });
+  }catch(e){ setAuth("Accesso non riuscito: " + e.message, true); }
+}
+async function accessToken(){
+  let tok = store.get("tok");
+  if(!tok) throw new Error("Non hai ancora fatto l'accesso.");
+  if(Date.now() > tok.exp){
+    tok = await tokenRequest({ grant_type:"refresh_token", refresh_token:tok.refresh, client_id:store.get("clientId") });
+  }
+  return tok.access;
+}
+function logout(){ store.del("tok"); store.del("me"); renderAuth(); }
+
+/* ---------- chiamate API con retry su 401/429 ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function api(path, opts={}, attempt=0){
+  const token = await accessToken();
+  const r = await fetch(path.startsWith("http") ? path : API + path, {
+    ...opts, headers:{ Authorization:"Bearer " + token, "Content-Type":"application/json", ...(opts.headers||{}) }
+  });
+  if(r.status === 429 && attempt < 5){
+    const wait = parseInt(r.headers.get("Retry-After") || "2", 10);
+    await sleep((wait + 1) * 1000); return api(path, opts, attempt + 1);
+  }
+  if(r.status === 401 && attempt < 1){
+    const t = store.get("tok"); if(t){ t.exp = 0; store.set("tok", t); }
+    return api(path, opts, attempt + 1);
+  }
+  const text = await r.text();
+  const j = text ? JSON.parse(text) : {};
+  if(!r.ok) throw new Error((j.error && j.error.message) || ("HTTP " + r.status));
+  return j;
+}
+
+/* ---------- parsing dell'elenco ---------- */
+const SEP = /\s+[–—-]\s+/;
+function clean(s){ return s.replace(/\*+|_+|`/g,"").replace(/\s+\(\d{4}\)\s*$/,"").trim(); }
+function parseList(text){
+  const out = []; const seen = new Set(); let current = null;
+  for(let raw of text.split(/\r?\n/)){
+    const line = raw.trim();
+    if(!line){ continue; }
+    // intestazione artista: "**Artista**", "# Artista", "Artista:"
+    let m = line.match(/^\*\*([^*]+)\*\*$/) || line.match(/^#{1,4}\s+(.+)$/) || line.match(/^([^–—\-:]{2,60}):$/);
+    if(m){ current = clean(m[1]); continue; }
+    let artist = null, title = null;
+    const numbered = line.match(/^\d+[.)]\s+(.*)$/);
+    if(numbered && current){
+      const body = numbered[1];
+      const bold = body.match(/^\*\*(.+?)\*\*/);
+      title = clean(bold ? bold[1] : body.split(SEP)[0]);
+      artist = current;
+    }else{
+      const body = (numbered ? numbered[1] : line).replace(/^[-•*]\s+/, "");
+      const parts = body.split(SEP);
+      if(parts.length >= 2){ artist = clean(parts[0]); title = clean(parts[1]); }
+    }
+    if(artist && title){
+      title = title.replace(/\s*\((feat|con|with)[^)]*\)\s*$/i, "").trim();
+      const key = norm(artist) + "|" + norm(title);
+      if(!seen.has(key)){ seen.add(key); out.push({ artist, title }); }
+    }
+  }
+  return out;
+}
+
+/* ---------- abbinamento (stessa logica dello script Python) ---------- */
+function norm(s){
+  return s.normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase()
+    .replace(/[’`]/g,"'").replace(/[^\p{L}\p{N}' ]+/gu," ").replace(/\s+/g," ").trim();
+}
+function artistMatch(wanted, artists){
+  const w = norm(wanted).replace(/^the /,"").replace(/[ .]/g,"");
+  return artists.some(a => {
+    const n = norm(a.name).replace(/^the /,"").replace(/[ .]/g,"");
+    return n.includes(w) || w.includes(n);
+  });
+}
+function score(item, artist, title){
+  if(!artistMatch(artist, item.artists)) return -1;
+  const name = norm(item.name), t = norm(title);
+  let s;
+  if(name === t) s = 100; else if(name.startsWith(t)) s = 60; else if(name.includes(t)) s = 30; else return -1;
+  if(AVOID.some(w => !t.includes(w) && (" " + name).includes(" " + w))) s -= 40;
+  const type = item.album && item.album.album_type;
+  if(type === "album") s += 5;
+  if(type === "compilation") s -= 10;
+  return s;
+}
+async function findTrack(artist, title){
+  const queries = [`track:"${title}" artist:"${artist}"`, `${title} ${artist}`, `${norm(title)} ${norm(artist)}`];
+  const pool = new Map();
+  for(const q of queries){
+    const j = await api(`/search?type=track&limit=10&market=from_token&q=${encodeURIComponent(q)}`);
+    for(const it of (j.tracks && j.tracks.items) || []){
+      const sc = score(it, artist, title);
+      if(sc >= 0 && (!pool.has(it.uri) || pool.get(it.uri).sc < sc)) pool.set(it.uri, { it, sc });
+    }
+    if([...pool.values()].some(c => c.sc >= 100)) break;
+  }
+  return [...pool.values()].sort((a,b) => b.sc - a.sc).slice(0, 6);
+}
+
+/* ---------- stato e rendering ---------- */
+let rows = [];
+function statusOf(r){
+  const c = r.cands[r.pick];
+  if(r.pick < 0 || !c) return "bad";
+  return c.sc >= 100 ? "ok" : "warn";
+}
+function el(tag, cls, text){ const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; }
+function render(){
+  $("results").classList.remove("hidden");
+  const ul = $("tracks"); ul.replaceChildren();
+  const cnt = { ok:0, warn:0, bad:0 };
+  rows.forEach((r, i) => {
+    const st = statusOf(r); cnt[st]++;
+    const li = document.createElement("li");
+    const chk = document.createElement("input"); chk.type = "checkbox";
+    chk.checked = r.include && st !== "bad"; chk.disabled = st === "bad";
+    chk.onchange = () => { r.include = chk.checked; };
+    const c = r.cands[r.pick];
+    const img = document.createElement("img"); img.className = "cover"; img.alt = "";
+    const imgs = c && c.it.album && c.it.album.images;
+    if(imgs && imgs.length) img.src = imgs[imgs.length - 1].url;
+    const box = el("div");
+    box.append(el("div", "req", `${i+1}. ${r.artist} – ${r.title}`));
+    if(c){
+      box.append(el("div", "got", c.it.name));
+      box.append(el("div", "alb", `${c.it.artists.map(a => a.name).join(", ")} · ${c.it.album.name}`));
+    }else{
+      box.append(el("div", "got err", "Non trovato"));
+    }
+    const chip = el("span", "chip " + ({ok:"c-ok", warn:"c-warn", bad:"c-bad"})[st],
+                    ({ok:"OK", warn:"Da verificare", bad:"Non trovato"})[st]);
+    chip.style.marginTop = "4px"; chip.style.display = "inline-block";
+    box.append(chip);
+    if(r.cands.length > 1 || st !== "ok"){
+      const sel = document.createElement("select");
+      r.cands.forEach((cd, k) => {
+        const o = document.createElement("option"); o.value = k;
+        o.textContent = `${cd.it.name} — ${cd.it.album.name}`; sel.append(o);
+      });
+      const none = document.createElement("option"); none.value = -1; none.textContent = "Nessuno (escludi)"; sel.append(none);
+      sel.value = r.pick; sel.onchange = () => { r.pick = +sel.value; r.include = r.pick >= 0; render(); };
+      box.append(sel);
+    }
+    const retry = el("button", "link", "Cerca con altro testo");
+    retry.onclick = async () => {
+      const q = prompt("Testo di ricerca (artista e titolo):", `${r.artist} ${r.title}`);
+      if(!q) return;
+      try{
+        const j = await api(`/search?type=track&limit=10&market=from_token&q=${encodeURIComponent(q)}`);
+        r.cands = ((j.tracks && j.tracks.items) || []).map(it => ({ it, sc: Math.max(score(it, r.artist, r.title), 50) }));
+        r.pick = r.cands.length ? 0 : -1; r.include = r.pick >= 0; render();
+      }catch(e){ alert(e.message); }
+    };
+    box.append(el("br")); box.append(retry);
+    li.append(chk, img, box); ul.append(li);
+  });
+  const sum = $("summary"); sum.replaceChildren(
+    el("span", "chip c-ok", `${cnt.ok} OK`),
+    el("span", "chip c-warn", `${cnt.warn} da verificare`),
+    el("span", "chip c-bad", `${cnt.bad} non trovati`)
+  );
+}
+
+async function runSearch(){
+  const list = parseList($("list").value);
+  store.set("draft", $("list").value); store.set("plName", $("plName").value);
+  $("parsedCount").textContent = `${list.length} brani riconosciuti`;
+  if(!list.length){ $("searchStatus").textContent = "Nessuna riga nel formato «Artista – Titolo»."; return; }
+  try{ await accessToken(); }catch(e){ $("searchStatus").textContent = e.message; $("searchStatus").classList.add("err"); return; }
+  $("searchStatus").classList.remove("err");
+  $("parseBtn").disabled = true; $("prog").classList.remove("hidden");
+  rows = list.map(x => ({ ...x, cands:[], pick:-1, include:true }));
+  let done = 0, idx = 0;
+  async function worker(){
+    while(idx < rows.length){
+      const r = rows[idx++];
+      try{ r.cands = await findTrack(r.artist, r.title); r.pick = r.cands.length ? 0 : -1; }
+      catch(e){ r.error = e.message; }
+      done++; $("prog").firstElementChild.style.width = (done / rows.length * 100) + "%";
+      $("searchStatus").textContent = `Ricerca ${done}/${rows.length}…`;
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]);
+  $("parseBtn").disabled = false;
+  const errs = rows.filter(r => r.error).length;
+  $("searchStatus").textContent = errs ? `Fatto, ma ${errs} ricerche sono fallite: riprova quei brani.` : "Ricerca completata.";
+  render();
+}
+
+async function createPlaylist(){
+  const uris = [...new Set(rows.filter(r => r.include && r.pick >= 0 && r.cands[r.pick]).map(r => r.cands[r.pick].it.uri))];
+  if(!uris.length){ $("createStatus").textContent = "Nessun brano selezionato."; return; }
+  $("createBtn").disabled = true; $("createStatus").classList.remove("err");
+  $("createStatus").textContent = "Creo la playlist…";
+  try{
+    const pl = await api("/me/playlists", { method:"POST", body:JSON.stringify({
+      name: $("plName").value.trim() || "Nuova playlist",
+      public: $("publicChk").checked,
+      description: "Creata da Playlist da lista"
+    })});
+    for(let i = 0; i < uris.length; i += 100){
+      await api(`/playlists/${pl.id}/items`, { method:"POST", body:JSON.stringify({ uris: uris.slice(i, i + 100) }) });
+    }
+    const s = $("createStatus"); s.replaceChildren(`Playlist creata con ${uris.length} brani. `);
+    const a = document.createElement("a"); a.href = pl.external_urls.spotify; a.textContent = "Apri in Spotify"; a.rel = "noopener";
+    s.append(a);
+  }catch(e){
+    $("createStatus").textContent = "Errore: " + e.message; $("createStatus").classList.add("err");
+  }finally{ $("createBtn").disabled = false; }
+}
+
+function exportCsv(){
+  const esc = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+  const lines = [["#","artista","titolo","esito","trovato","album","uri"].join(",")];
+  rows.forEach((r, i) => {
+    const c = r.cands[r.pick]; const st = {ok:"OK", warn:"DA VERIFICARE", bad:"NON TROVATO"}[statusOf(r)];
+    lines.push([i+1, r.artist, r.title, st, c ? c.it.name : "", c ? c.it.album.name : "", c ? c.it.uri : ""].map(esc).join(","));
+  });
+  const blob = new Blob(["﻿" + lines.join("\n")], { type:"text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "report_playlist.csv"; a.click();
+}
+
+/* ---------- account ---------- */
+function setAuth(msg, isErr){ const s = $("authState"); s.textContent = msg; s.classList.toggle("err", !!isErr); }
+async function renderAuth(){
+  const logged = !!store.get("tok");
+  $("loginBtn").classList.toggle("hidden", logged);
+  $("logoutBtn").classList.toggle("hidden", !logged);
+  if(!logged){ if(!$("authState").classList.contains("err")) setAuth("Non collegato."); return; }
+  try{
+    let me = store.get("me");
+    if(!me){ me = await api("/me"); store.set("me", { name: me.display_name || me.id }); me = store.get("me"); }
+    setAuth("Collegato come " + me.name + ".");
+  }catch(e){ setAuth("Sessione non valida: " + e.message, true); }
+}
+
+/* ---------- avvio ---------- */
+(async function init(){
+  $("redirect").textContent = REDIRECT;
+  $("clientId").value = store.get("clientId", "");
+  $("list").value = store.get("draft", "");
+  $("plName").value = store.get("plName", $("plName").value);
+  if(!store.get("clientId")) $("cfg").open = true;
+  $("loginBtn").onclick = login;
+  $("logoutBtn").onclick = logout;
+  $("parseBtn").onclick = runSearch;
+  $("createBtn").onclick = createPlaylist;
+  $("csvBtn").onclick = exportCsv;
+  $("list").oninput = () => { $("parsedCount").textContent = `${parseList($("list").value).length} brani riconosciuti`; };
+  await handleCallback();
+  renderAuth();
+  $("list").oninput();
+})();
+</script>
+</body>
+</html>
