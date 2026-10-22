@@ -208,8 +208,12 @@ async function api(path, opts={}, attempt=0){
     return api(path, opts, attempt + 1);
   }
   const text = await r.text();
-  const j = text ? JSON.parse(text) : {};
-  if(!r.ok) throw new Error((j.error && j.error.message) || ("HTTP " + r.status));
+  let j = {};
+  try{ j = text ? JSON.parse(text) : {}; }catch{ j = { raw: text.slice(0, 200) }; }
+  if(!r.ok){
+    const msg = (j.error && (j.error.message || j.error)) || j.raw || "";
+    throw new Error(`HTTP ${r.status}${msg ? " – " + msg : ""}`);
+  }
   return j;
 }
 
@@ -272,7 +276,7 @@ async function findTrack(artist, title){
   const queries = [`track:"${title}" artist:"${artist}"`, `${title} ${artist}`, `${norm(title)} ${norm(artist)}`];
   const pool = new Map();
   for(const q of queries){
-    const j = await api(`/search?type=track&limit=10&market=from_token&q=${encodeURIComponent(q)}`);
+    const j = await api(`/search?type=track&limit=10&market=IT&q=${encodeURIComponent(q)}`);
     for(const it of (j.tracks && j.tracks.items) || []){
       const sc = score(it, artist, title);
       if(sc >= 0 && (!pool.has(it.uri) || pool.get(it.uri).sc < sc)) pool.set(it.uri, { it, sc });
@@ -310,7 +314,8 @@ function render(){
       box.append(el("div", "got", c.it.name));
       box.append(el("div", "alb", `${c.it.artists.map(a => a.name).join(", ")} · ${c.it.album.name}`));
     }else{
-      box.append(el("div", "got err", "Non trovato"));
+      box.append(el("div", "got err", r.error ? "Errore di ricerca" : "Non trovato"));
+      if(r.error) box.append(el("div", "alb err", r.error));
     }
     const chip = el("span", "chip " + ({ok:"c-ok", warn:"c-warn", bad:"c-bad"})[st],
                     ({ok:"OK", warn:"Da verificare", bad:"Non trovato"})[st]);
@@ -331,7 +336,7 @@ function render(){
       const q = prompt("Testo di ricerca (artista e titolo):", `${r.artist} ${r.title}`);
       if(!q) return;
       try{
-        const j = await api(`/search?type=track&limit=10&market=from_token&q=${encodeURIComponent(q)}`);
+        const j = await api(`/search?type=track&limit=10&market=IT&q=${encodeURIComponent(q)}`);
         r.cands = ((j.tracks && j.tracks.items) || []).map(it => ({ it, sc: Math.max(score(it, r.artist, r.title), 50) }));
         r.pick = r.cands.length ? 0 : -1; r.include = r.pick >= 0; render();
       }catch(e){ alert(e.message); }
@@ -367,8 +372,10 @@ async function runSearch(){
   }
   await Promise.all([worker(), worker(), worker()]);
   $("parseBtn").disabled = false;
-  const errs = rows.filter(r => r.error).length;
-  $("searchStatus").textContent = errs ? `Fatto, ma ${errs} ricerche sono fallite: riprova quei brani.` : "Ricerca completata.";
+  const failed = rows.filter(r => r.error);
+  $("searchStatus").textContent = failed.length
+    ? `Fatto, ma ${failed.length} ricerche sono fallite. Errore: ${failed[0].error}`
+    : "Ricerca completata.";
   render();
 }
 
