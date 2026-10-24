@@ -94,11 +94,12 @@ a{color:var(--accent)}
   <section>
     <h2>Brani</h2>
     <label for="plName">Nome della playlist</label>
-    <input id="plName" type="text" value="Musica leggerissima (ma non troppo)">
+    <input id="plName" type="text" value="Musica leggerissima (ma non troppo)" placeholder="Nome della nuova playlist">
     <label for="list">Elenco (una riga per brano)</label>
     <textarea id="list" placeholder="Verdena – Valvonauta&#10;Afterhours - Male di miele&#10;&#10;oppure:&#10;**Baustelle**&#10;1. **Charlie fa surf** – *Amen* (2008)"></textarea>
     <div class="row" style="margin-top:12px">
       <button id="parseBtn">Cerca i brani</button>
+      <button id="clearBtn" class="ghost">Pulisci</button>
       <span id="parsedCount" class="req"></span>
     </div>
     <div class="progress hidden" id="prog"><div></div></div>
@@ -108,7 +109,9 @@ a{color:var(--accent)}
   <section id="results" class="hidden">
     <h2>Risultati</h2>
     <div class="summary" id="summary"></div>
+    <label class="toggle" style="margin:0 0 10px"><input type="checkbox" id="onlyIssues"> Mostra solo da controllare</label>
     <ul class="tracks" id="tracks"></ul>
+    <div id="emptyFilter" class="status hidden">Nessun brano da controllare: è tutto OK.</div>
     <label class="toggle"><input type="checkbox" id="publicChk"> Playlist pubblica</label>
     <div class="row" style="margin-top:12px">
       <button id="createBtn">Crea playlist</button>
@@ -251,7 +254,8 @@ function parseList(text){
 
 /* ---------- abbinamento (stessa logica dello script Python) ---------- */
 function norm(s){
-  return s.normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase()
+  // i punti vengono tolti (non trasformati in spazi): "L.S.D." -> "lsd", "C.S.I." -> "csi"
+  return s.normalize("NFKD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/\./g,"")
     .replace(/[’`]/g,"'").replace(/[^\p{L}\p{N}' ]+/gu," ").replace(/\s+/g," ").trim();
 }
 function artistMatch(wanted, artists){
@@ -264,8 +268,17 @@ function artistMatch(wanted, artists){
 function score(item, artist, title){
   if(!artistMatch(artist, item.artists)) return -1;
   const name = norm(item.name), t = norm(title);
+  // titolo "base" senza suffissi tipo " - Remastered 2020" o " (Live)"
+  const raw = item.name.toLowerCase();
+  const cut = raw.search(/\s[-–—]\s|\s\(/);
+  const base = cut > 0 ? norm(item.name.slice(0, cut)) : name;
+  const suffix = cut > 0 ? raw.slice(cut) : "";
   let s;
-  if(name === t) s = 100; else if(name.startsWith(t)) s = 60; else if(name.includes(t)) s = 30; else return -1;
+  if(name === t) s = 100;
+  else if(base === t && /remaster/.test(suffix)) s = 100;   // il remaster è il brano originale
+  else if(name.startsWith(t)) s = 60;
+  else if(name.includes(t)) s = 30;
+  else return -1;
   if(AVOID.some(w => !t.includes(w) && (" " + name).includes(" " + w))) s -= 40;
   const type = item.album && item.album.album_type;
   if(type === "album") s += 5;
@@ -298,8 +311,12 @@ function render(){
   $("results").classList.remove("hidden");
   const ul = $("tracks"); ul.replaceChildren();
   const cnt = { ok:0, warn:0, bad:0 };
+  const onlyIssues = $("onlyIssues").checked;
+  let shown = 0;
   rows.forEach((r, i) => {
     const st = statusOf(r); cnt[st]++;
+    if(onlyIssues && st === "ok") return;
+    shown++;
     const li = document.createElement("li");
     const chk = document.createElement("input"); chk.type = "checkbox";
     chk.checked = r.include && st !== "bad"; chk.disabled = st === "bad";
@@ -344,6 +361,7 @@ function render(){
     box.append(el("br")); box.append(retry);
     li.append(chk, img, box); ul.append(li);
   });
+  $("emptyFilter").classList.toggle("hidden", !(onlyIssues && shown === 0));
   const sum = $("summary"); sum.replaceChildren(
     el("span", "chip c-ok", `${cnt.ok} OK`),
     el("span", "chip c-warn", `${cnt.warn} da verificare`),
@@ -401,6 +419,24 @@ async function createPlaylist(){
   }finally{ $("createBtn").disabled = false; }
 }
 
+function clearAll(){
+  const hasData = $("list").value.trim() || rows.length;
+  if(hasData && !confirm("Svuotare elenco, nome e risultati?")) return;
+  $("list").value = "";
+  $("plName").value = "";
+  $("onlyIssues").checked = false;
+  $("publicChk").checked = false;
+  rows = [];
+  $("tracks").replaceChildren();
+  $("summary").replaceChildren();
+  $("results").classList.add("hidden");
+  $("prog").classList.add("hidden");
+  $("prog").firstElementChild.style.width = "0";
+  for(const id of ["searchStatus","createStatus","parsedCount"]){ $(id).textContent = ""; $(id).classList.remove("err"); }
+  store.del("draft"); store.del("plName");
+  $("plName").focus();
+}
+
 function exportCsv(){
   const esc = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
   const lines = [["#","artista","titolo","esito","trovato","album","uri"].join(",")];
@@ -438,6 +474,8 @@ async function renderAuth(){
   $("parseBtn").onclick = runSearch;
   $("createBtn").onclick = createPlaylist;
   $("csvBtn").onclick = exportCsv;
+  $("clearBtn").onclick = clearAll;
+  $("onlyIssues").onchange = render;
   $("list").oninput = () => { $("parsedCount").textContent = `${parseList($("list").value).length} brani riconosciuti`; };
   await handleCallback();
   renderAuth();
