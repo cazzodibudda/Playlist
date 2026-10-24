@@ -100,6 +100,7 @@ a{color:var(--accent)}
     <div class="row" style="margin-top:12px">
       <button id="parseBtn">Cerca i brani</button>
       <button id="clearBtn" class="ghost">Pulisci</button>
+      <button id="retryBtn" class="ghost hidden">Riprova i falliti</button>
       <span id="parsedCount" class="req"></span>
     </div>
     <div class="progress hidden" id="prog"><div></div></div>
@@ -205,6 +206,10 @@ async function api(path, opts={}, attempt=0){
   if(r.status === 429 && attempt < 5){
     const wait = parseInt(r.headers.get("Retry-After") || "2", 10);
     await sleep((wait + 1) * 1000); return api(path, opts, attempt + 1);
+  }
+  if([500,502,503,504].includes(r.status) && attempt < 4){
+    await sleep(1000 * 2 ** attempt + Math.random() * 500);   // 1s, 2s, 4s, 8s
+    return api(path, opts, attempt + 1);
   }
   if(r.status === 401 && attempt < 1){
     const t = store.get("tok"); if(t){ t.exp = 0; store.set("tok", t); }
@@ -378,23 +383,40 @@ async function runSearch(){
   $("searchStatus").classList.remove("err");
   $("parseBtn").disabled = true; $("prog").classList.remove("hidden");
   rows = list.map(x => ({ ...x, cands:[], pick:-1, include:true }));
+  await searchRows(rows);
+}
+
+async function searchRows(todo){
+  $("parseBtn").disabled = true; $("retryBtn").disabled = true;
+  $("prog").classList.remove("hidden");
+  $("prog").firstElementChild.style.width = "0";
   let done = 0, idx = 0;
   async function worker(){
-    while(idx < rows.length){
-      const r = rows[idx++];
-      try{ r.cands = await findTrack(r.artist, r.title); r.pick = r.cands.length ? 0 : -1; }
+    while(idx < todo.length){
+      const r = todo[idx++];
+      delete r.error;
+      try{ r.cands = await findTrack(r.artist, r.title); r.pick = r.cands.length ? 0 : -1; r.include = true; }
       catch(e){ r.error = e.message; }
-      done++; $("prog").firstElementChild.style.width = (done / rows.length * 100) + "%";
-      $("searchStatus").textContent = `Ricerca ${done}/${rows.length}…`;
+      done++; $("prog").firstElementChild.style.width = (done / todo.length * 100) + "%";
+      $("searchStatus").textContent = `Ricerca ${done}/${todo.length}…`;
+      await sleep(150);   // ritmo più gentile verso l'API
     }
   }
-  await Promise.all([worker(), worker(), worker()]);
-  $("parseBtn").disabled = false;
+  await Promise.all([worker(), worker()]);
+  $("parseBtn").disabled = false; $("retryBtn").disabled = false;
   const failed = rows.filter(r => r.error);
+  $("retryBtn").classList.toggle("hidden", !failed.length);
+  const one = failed.length === 1;
+  $("retryBtn").textContent = one ? "Riprova il brano fallito" : `Riprova i ${failed.length} falliti`;
   $("searchStatus").textContent = failed.length
-    ? `Fatto, ma ${failed.length} ricerche sono fallite. Errore: ${failed[0].error}`
+    ? `Fatto, ma ${one ? "1 ricerca è fallita" : failed.length + " ricerche sono fallite"}. Errore: ${failed[0].error}`
     : "Ricerca completata.";
   render();
+}
+
+function retryFailed(){
+  const failed = rows.filter(r => r.error);
+  if(failed.length) searchRows(failed);
 }
 
 async function createPlaylist(){
@@ -427,6 +449,7 @@ function clearAll(){
   $("onlyIssues").checked = false;
   $("publicChk").checked = false;
   rows = [];
+  $("retryBtn").classList.add("hidden");
   $("tracks").replaceChildren();
   $("summary").replaceChildren();
   $("results").classList.add("hidden");
@@ -475,6 +498,7 @@ async function renderAuth(){
   $("createBtn").onclick = createPlaylist;
   $("csvBtn").onclick = exportCsv;
   $("clearBtn").onclick = clearAll;
+  $("retryBtn").onclick = retryFailed;
   $("onlyIssues").onchange = render;
   $("list").oninput = () => { $("parsedCount").textContent = `${parseList($("list").value).length} brani riconosciuti`; };
   await handleCallback();
